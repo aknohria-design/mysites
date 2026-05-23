@@ -1,0 +1,9 @@
+{
+  "name": "identity-verification-webapp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Client-side identity verification demo with document OCR, webcam selfie capture, and face comparison.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

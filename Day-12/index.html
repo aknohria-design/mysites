@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Identity Verification Studio</title>
+    <meta
+      name="description"
+      content="Browser-based identity verification with document OCR, webcam selfie capture, and face comparison."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./css/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+    <script>
+      if (window.location.protocol === 'file:') {
+        window.addEventListener('DOMContentLoaded', () => {
+          const warning = document.createElement('div');
+          warning.style.cssText =
+            'position:sticky;top:0;z-index:9999;padding:14px 18px;background:#fff3cd;color:#5c4300;border-bottom:1px solid #f1d47a;font:600 15px system-ui,sans-serif;text-align:center;';
+          warning.innerHTML =
+            'This app must be opened from the local server, not directly as a file. Run <code>npm start</code>, then open <a href="http://localhost:4173/">http://localhost:4173/</a>.';
+          document.body.prepend(warning);
+        });
+      } else {
+        import('./js/app.js').catch((error) => {
+          console.error('Unable to load the app module:', error);
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Identity Verification</p>
+          <h1>Launch the call, capture the user, and cross-check against the uploaded ID.</h1>
+          <p class="hero-text">
+            This demo runs in the browser: it opens a verification call room, captures a live selfie,
+            extracts name and date of birth from the ID document, and compares the face on the document
+            against the live capture.
+          </p>
+          <div class="hero-actions">
+            <button id="load-sample-button" class="button button-secondary" type="button">Use Sample ID</button>
+            <a class="button button-ghost" href="#workflow">Go to Workflow</a>
+          </div>
+        </div>
+        <aside class="hero-panel">
+          <p class="panel-label">Checks performed</p>
+          <ul class="feature-list">
+            <li>Name match against OCR output</li>
+            <li>Date of birth match against OCR output</li>
+            <li>Face similarity between ID and selfie</li>
+          </ul>
+          <div class="panel-note">
+            <strong>Privacy:</strong> processing stays in the browser except for external model downloads.
+          </div>
+        </aside>
+      </header>
+
+      <main id="workflow" class="workflow-grid">
+        <section class="card card-step">
+          <div class="card-head">
+            <span class="step-chip">Step 1</span>
+            <h2>Claimed identity</h2>
+          </div>
+          <div class="form-grid">
+            <label class="field">
+              <span>Full name</span>
+              <input id="claimed-name" type="text" placeholder="Enter the user's full name" autocomplete="name" />
+            </label>
+            <label class="field">
+              <span>Date of birth</span>
+              <input id="claimed-dob" type="date" />
+            </label>
+          </div>
+          <div class="card-footnote">These values are compared against the OCR text extracted from the ID document.</div>
+        </section>
+
+        <section class="card card-step">
+          <div class="card-head">
+            <span class="step-chip">Step 2</span>
+            <h2>Document intake</h2>
+          </div>
+          <fieldset class="document-choice-card">
+            <legend>How should we verify the document?</legend>
+            <label class="document-choice-option">
+              <input type="radio" name="document-source-mode" value="upload" checked />
+              <span>
+                <strong>Upload a valid identity document now</strong>
+                <small>Use this when the user has the ID image available during this session.</small>
+              </span>
+            </label>
+            <label class="document-choice-option">
+              <input type="radio" name="document-source-mode" value="existing" />
+              <span>
+                <strong>The user already provided the document</strong>
+                <small>Search and match against documents in <code>D:\GENAI_Class\Day5\Day-12\IDS</code>.</small>
+              </span>
+            </label>
+          </fieldset>
+
+          <div id="upload-document-panel">
+            <label class="upload-zone" for="document-input">
+              <input id="document-input" type="file" accept="image/*" hidden />
+              <span class="upload-title">Upload an ID document</span>
+              <span class="upload-subtitle">Driver license, passport, or another ID image</span>
+            </label>
+          </div>
+
+          <div id="existing-document-panel" class="folder-doc-card" hidden>
+            <div>
+              <p class="analysis-title">Already provided documents</p>
+              <p class="folder-doc-copy">The app will search <code>D:\GENAI_Class\Day5\Day-12\IDS</code> and report whether name, date of birth, and face match any stored document.</p>
+            </div>
+            <div class="folder-doc-controls">
+              <select id="ids-document-select" aria-label="Documents in IDS folder" disabled>
+                <option value="">Loading IDS documents...</option>
+              </select>
+              <button id="load-ids-document-button" class="button button-secondary" type="button" disabled>Load Selected ID</button>
+              <button id="verify-ids-folder-button" class="button" type="button" disabled>Find Match in IDS Folder</button>
+            </div>
+            <p id="ids-folder-status" class="status-line">Checking IDS folder...</p>
+          </div>
+          <div class="preview-grid">
+            <figure class="preview-card">
+              <img id="document-preview" alt="Document preview" />
+              <figcaption>Document preview</figcaption>
+            </figure>
+            <div class="analysis-card">
+              <p class="analysis-title">OCR extraction</p>
+              <dl class="analysis-list">
+                <div>
+                  <dt>Extracted name</dt>
+                  <dd id="ocr-name">Waiting for document</dd>
+                </div>
+                <div>
+                  <dt>Extracted DOB</dt>
+                  <dd id="ocr-dob">Waiting for document</dd>
+                </div>
+              </dl>
+              <label class="field">
+                <span>OCR text snapshot</span>
+                <textarea id="ocr-text" rows="8" readonly placeholder="Recognized ID text will appear here"></textarea>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section class="card card-step card-wide">
+          <div class="card-head">
+            <span class="step-chip">Step 3</span>
+            <h2>Verification call and selfie capture</h2>
+          </div>
+          <div class="capture-layout">
+            <div class="call-card">
+              <p class="analysis-title">Verification room</p>
+              <p class="call-copy">
+                Start a fresh Jitsi room for the user, then keep this page open to capture a selfie from the live camera feed.
+              </p>
+              <button id="start-call-button" class="button" type="button">Start Video Call</button>
+              <p id="call-status" class="status-line">No call started yet.</p>
+            </div>
+            <div class="camera-card">
+              <video id="camera-preview" autoplay playsinline muted></video>
+              <img id="selfie-preview" alt="Captured selfie preview" hidden />
+              <div class="camera-actions">
+                <button id="start-camera-button" class="button button-secondary" type="button">Enable Camera</button>
+                <button id="capture-button" class="button" type="button">Capture Selfie</button>
+              </div>
+              <p id="camera-status" class="status-line">Camera idle.</p>
+              <canvas id="capture-canvas" hidden></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="card card-step card-wide">
+          <div class="card-head">
+            <span class="step-chip">Step 4</span>
+            <h2>Run verification</h2>
+          </div>
+          <div class="verify-strip">
+            <button id="verify-button" class="button button-large" type="button">Validate Identity</button>
+            <p id="app-status" class="status-line">Load a document, start the camera, and capture a selfie to continue.</p>
+          </div>
+          <div id="results" class="results-grid" aria-live="polite">
+            <article class="result-card">
+              <p class="result-label">Name check</p>
+              <p id="name-result" class="result-value">Pending</p>
+            </article>
+            <article class="result-card">
+              <p class="result-label">DOB check</p>
+              <p id="dob-result" class="result-value">Pending</p>
+            </article>
+            <article class="result-card">
+              <p class="result-label">Face check</p>
+              <p id="face-result" class="result-value">Pending</p>
+            </article>
+            <article class="result-card result-card-wide">
+              <p class="result-label">Decision</p>
+              <p id="overall-result" class="result-value result-emphasis">Awaiting verification</p>
+              <p id="result-detail" class="result-detail">The app will summarize OCR matches and face similarity here.</p>
+            </article>
+          </div>
+          <div class="folder-results-card">
+            <div class="card-head folder-results-head">
+              <span class="step-chip">IDS</span>
+              <h3>Folder verification results</h3>
+            </div>
+            <div id="ids-folder-results" class="folder-results-empty">Choose <strong>The user already provided the document</strong>, then run <strong>Find Matching Stored ID</strong> to compare name, date of birth, and face against each image in the IDS folder.</div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
